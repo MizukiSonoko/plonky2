@@ -355,7 +355,16 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         let equal = self.add_virtual_bool_target_unsafe();
         let not_equal = self.not(equal);
         let inv = self.add_virtual_target();
-        self.add_simple_generator(EqualityGenerator { x, y, equal, inv });
+        let less_than = self.add_virtual_bool_target_unsafe();
+        let greater_than = self.add_virtual_bool_target_unsafe();
+        self.add_simple_generator(CompareGenerator {
+            x,
+            y,
+            equal,
+            less_than,
+            greater_than,
+            inv,
+        });
 
         let diff = self.sub(x, y);
         let not_equal_check = self.mul(equal.target, diff);
@@ -365,20 +374,72 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
 
         self.connect(not_equal_check, zero);
         self.connect(equal_check, zero);
+        self.connect(greater_than.target, zero);
+        self.connect(less_than.target, zero);
 
         equal
+    }
+
+    pub fn is_greater_than(&mut self, x: Target, y: Target) -> BoolTarget {
+        let zero = self.zero();
+        let one = self.one();
+
+        let equal = self.add_virtual_bool_target_unsafe();
+        let less_than = self.add_virtual_bool_target_unsafe();
+        let greater_than = self.add_virtual_bool_target_unsafe();
+        let inv = self.add_virtual_target();
+        self.add_simple_generator(CompareGenerator {
+            x,
+            y,
+            equal,
+            less_than,
+            greater_than,
+            inv,
+        });
+
+        self.connect(equal.target, zero);
+        self.connect(greater_than.target, one);
+        self.connect(less_than.target, zero);
+
+        greater_than
+    }
+
+    pub fn is_less_than(&mut self, x: Target, y: Target) -> BoolTarget {
+        let zero = self.zero();
+        let one = self.one();
+
+        let equal = self.add_virtual_bool_target_unsafe();
+        let less_than = self.add_virtual_bool_target_unsafe();
+        let greater_than = self.add_virtual_bool_target_unsafe();
+        let inv = self.add_virtual_target();
+        self.add_simple_generator(CompareGenerator {
+            x,
+            y,
+            equal,
+            less_than,
+            greater_than,
+            inv,
+        });
+
+        self.connect(equal.target, zero);
+        self.connect(greater_than.target, zero);
+        self.connect(less_than.target, one);
+
+        less_than
     }
 }
 
 #[derive(Debug)]
-struct EqualityGenerator {
+struct CompareGenerator {
     x: Target,
     y: Target,
     equal: BoolTarget,
+    less_than: BoolTarget,
+    greater_than: BoolTarget,
     inv: Target,
 }
 
-impl<F: RichField> SimpleGenerator<F> for EqualityGenerator {
+impl<F: RichField> SimpleGenerator<F> for CompareGenerator {
     fn dependencies(&self) -> Vec<Target> {
         vec![self.x, self.y]
     }
@@ -387,9 +448,14 @@ impl<F: RichField> SimpleGenerator<F> for EqualityGenerator {
         let x = witness.get_target(self.x);
         let y = witness.get_target(self.y);
 
+        let x_u64 = witness.get_target(self.x).to_canonical_u64();
+        let y_u64 = witness.get_target(self.y).to_canonical_u64();
+
         let inv = if x != y { (x - y).inverse() } else { F::ZERO };
 
         out_buffer.set_bool_target(self.equal, x == y);
+        out_buffer.set_bool_target(self.less_than, x_u64 < y_u64);
+        out_buffer.set_bool_target(self.greater_than, x_u64 > y_u64);
         out_buffer.set_target(self.inv, inv);
     }
 }
