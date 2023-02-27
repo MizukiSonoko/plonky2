@@ -380,9 +380,10 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         equal
     }
 
-    pub fn is_greater_than(&mut self, x: Target, y: Target) -> BoolTarget {
+    pub fn is_greater_than(&mut self, x: Target, y: Target, num_bits: usize) -> BoolTarget {
         let zero = self.zero();
         let one = self.one();
+        let two = self.two();
 
         let equal = self.add_virtual_bool_target_unsafe();
         let less_than = self.add_virtual_bool_target_unsafe();
@@ -396,15 +397,27 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
             greater_than,
             inv,
         });
+        
+        // number = 2^(num_bits + 1) + x - y
+        let n_plus_one_th_power_of_2 = self.exp_u64(two, (num_bits + 1) as u64);
+        let it_plus_x = self.add(n_plus_one_th_power_of_2, x);
+        let number = self.sub(it_plus_x, y);
 
-        self.connect(equal.target, zero);
+        // number >> (num_bits + 1)
+        let mut current = number;
+        for _ in 0..num_bits {
+            current = self.div(current, two);
+        }
+        self.connect(current, one);
+
+        self.connect(equal.target, zero);        
         self.connect(greater_than.target, one);
         self.connect(less_than.target, zero);
 
         greater_than
     }
 
-    pub fn is_less_than(&mut self, x: Target, y: Target) -> BoolTarget {
+    pub fn is_less_than(&mut self, x: Target, y: Target, num_bits: usize) -> BoolTarget {
         let zero = self.zero();
         let one = self.one();
 

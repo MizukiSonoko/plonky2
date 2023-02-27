@@ -17,11 +17,12 @@ fn main() -> Result<()> {
 
     let age_t = builder.add_virtual_target();
     let thresh_hold_t = builder.constant(F::from_canonical_u64(18));
+    let num_bits: usize = 128;
 
     // Public inputs are the one thresh_hold_t.
     builder.register_public_input(thresh_hold_t);
 
-    let result_t = builder.is_greater_than(age_t, thresh_hold_t);
+    let result_t = builder.is_greater_than(age_t, thresh_hold_t, num_bits);
     builder.assert_one(result_t.target);
 
     // Provide secret age.
